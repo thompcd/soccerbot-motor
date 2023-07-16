@@ -1,23 +1,32 @@
 import os
 import json
 import paho.mqtt.client as mqtt
+import queue
+import threading as th
+import move_control
 
-# The callback for when the client receives a CONNACK response from the server.
+commandQueue = queue.SimpleQueue()
+
 def on_connect(client, userdata, flags, rc):
     print("Connected with result code "+str(rc))
-
     # Subscribing in on_connect() means that if we lose the connection and
     # reconnect then subscriptions will be renewed.
     client.subscribe(config["remote"]["topic"])
 
-
-# The callback for when a PUBLISH message is received from the server.
 def on_message(client, userdata, msg):
     print(msg.topic+" "+str(msg.payload))
-
+    if (msg.topic.endswith("move")):
+        try:
+            cmd = json.loads(msg.payload)
+            commandQueue.put((cmd["Id"], cmd["Degrees"], cmd["Magnitude"]))
+            print("added command to queue")
+        except ValueError:
+            print("received invalid remote command")
+            
 #assume dev unless prod is specified
 config = None
 if os.environ.get('environment') == 'prod':
+    print("Loading ../config.json")
     with open("../config.json", "r") as f:
         config = json.load(f)
 else:
@@ -34,6 +43,10 @@ client.on_connect = on_connect
 client.on_message = on_message
 
 client.connect(config["remote"]["broker"], config["remote"]["port"], 60)
+
+print("launching move control")
+motor_thread = th.Thread(target=move_control.process_moves, args=(commandQueue, 2,))
+motor_thread.start()
 
 # Blocking call that processes network traffic, dispatches callbacks and
 # handles reconnecting.

@@ -1,0 +1,8 @@
+{
+    "remote":{
+        "type": "mqtt-command-handler",
+        "broker":"broker.hivemq.com",
+        "port": 1883,
+        "topic": "cmd/soccerbot/move"
+    }
+}
